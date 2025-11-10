@@ -4,6 +4,7 @@ import { cn } from '@/lib/utils'
 import { usePathname } from 'next/navigation'
 import React from 'react'
 import Link from 'next/link'
+import Image from 'next/image'
 
 const Sidebar = () => {
   const pathname = usePathname();
@@ -23,7 +24,14 @@ const Sidebar = () => {
                 isActive && 'bg-blue-1'
               )}
             >
-              {item.label}
+              <Image
+              src = {item.imgUrl}
+              alt = {item.label}
+              width ={24}
+              height = {24} />
+              <p className = "text-lg font-semibold max-lg:hidden">
+                {item.label}
+              </p>
             </Link>
           )
         })}
