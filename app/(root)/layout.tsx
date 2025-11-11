@@ -2,7 +2,9 @@ import React, { ReactNode } from 'react'
 
 const rootLayout = ({ children }:{children: ReactNode}) => {
   return (
-    <main>{children}</main>
+    <main>
+        {children}
+        </main>
   )
 }
 
