@@ -24,7 +24,7 @@ const MobileNav = () => {
                 alt = 'NodzBud'
                 className="cursor-pointer sm:hidden" />
             </SheetTrigger>
-            <SheetContent side='left' className="border-none bg-dark-1">
+            <SheetContent side='left' className="border-none'bg-blue-200">
                <Link href ="/" className ='flex items-center gap-1'>
                     <Image
                     src = "/icons/logo.svg" 
@@ -50,7 +50,7 @@ const MobileNav = () => {
                                     key={item.label}
                                     className={cn(
                                         'flex gap-4 items-center p-4 rounded-lg w-full max-w-60',
-                                        isActive && 'bg-blue-1'
+                                        isActive && 'bg-blue-200'
                                     )}
                                     >
                                         <Image
