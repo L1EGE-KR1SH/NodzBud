@@ -10,7 +10,11 @@
   .flex-between {
     @apply flex justify-between items-center;
   }
-
+  .bg-hero
+  {
+    background-image: url('/images/hero-background.png');
+    padding-right: 20px;
+  }
 }
 @theme inline {
   --color-background: var(--background);
@@ -129,3 +133,4 @@
     @apply bg-background text-foreground;
   }
 }
+
