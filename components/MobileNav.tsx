@@ -3,6 +3,7 @@ import {
   Sheet,
   SheetClose,
   SheetContent,
+  SheetTitle,
   SheetTrigger,
 } from "@/components/ui/sheet"
 import Image from 'next/image'
@@ -25,6 +26,8 @@ const MobileNav = () => {
                 className="cursor-pointer sm:hidden" />
             </SheetTrigger>
             <SheetContent side='left' className="border-none'bg-blue-200">
+                <SheetTitle className="sr-only">Mobile Navigation</SheetTitle>
+
                <Link href ="/" className ='flex items-center gap-1'>
                     <Image
                     src = "/icons/logo.svg" 
