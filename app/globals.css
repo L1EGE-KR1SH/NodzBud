@@ -2,6 +2,7 @@
 @import "tw-animate-css";
 
 @custom-variant dark (&:is(.dark *));
+
 @layer utilities {
   .flex-center {
     @apply flex justify-center items-center;
@@ -10,12 +11,39 @@
   .flex-between {
     @apply flex justify-between items-center;
   }
-  .bg-hero
-  {
+  
+  .bg-hero {
     background-image: url('/images/hero-background.png');
     padding-right: 20px;
   }
+
+  /* Glassmorphism Classes */
+  .glassmorphism {
+    @apply bg-white/10 backdrop-blur-lg border border-white/20 rounded-xl;
+  }
+
+  .glassmorphism-strong {
+    @apply bg-white/15 backdrop-blur-xl border border-white/30 rounded-xl shadow-lg;
+  }
+
+  .glassmorphism-subtle {
+    @apply bg-white/5 backdrop-blur-md border border-white/10 rounded-xl;
+  }
+
+  /* Dark mode glassmorphism */
+  .dark .glassmorphism {
+    @apply bg-white/5 backdrop-blur-lg border border-white/10;
+  }
+
+  .dark .glassmorphism-strong {
+    @apply bg-white/10 backdrop-blur-xl border border-white/20 shadow-xl;
+  }
+
+  .dark .glassmorphism-subtle {
+    @apply bg-white/[0.02] backdrop-blur-md border border-white/5;
+  }
 }
+
 @theme inline {
   --color-background: var(--background);
   --color-foreground: var(--foreground);
@@ -133,4 +161,3 @@
     @apply bg-background text-foreground;
   }
 }
-
