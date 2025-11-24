@@ -5,7 +5,10 @@ import { ClerkProvider } from "@clerk/nextjs";
 import { Toaster } from "@/components/ui/sonner";
 import Navbar from "@/components/Navbar";
 import "@stream-io/video-react-sdk/dist/css/styles.css";
-import "react-datepicker/dist/react-datepicker.css"
+import "react-datepicker/dist/react-datepicker.css";
+import Sidebar from "@/components/Sidebar";
+import { ThemeProvider } from "@/context/ThemeContext";
+
 const geistSans = Geist({
   variable: "--font-geist-sans",
   subsets: ["latin"],
@@ -23,30 +26,38 @@ export const metadata: Metadata = {
 
 export default function RootLayout({
   children,
-}: Readonly<{
+}: {
   children: React.ReactNode;
-}>) {
+}) {
   return (
-    <ClerkProvider appearance={{
-      layout:{
-        logoImageUrl:'/icons/yoom-logo.svg'
-      },
-      variables:{
-        colorText:'fff',
-        colorInputText:'#fff',
-        colorInputBackground:'#252a41',
-        colorBackground:'#1c1f2e',
-        colorPrimary:'#0E78F9'
-      },
-
-    }}>
+    <ClerkProvider
+      appearance={{
+        layout: { logoImageUrl: "/icons/yoom-logo.svg" },
+        variables: {
+          colorText: "#fff",
+          colorInputText: "#fff",
+          colorInputBackground: "#252a41",
+          colorBackground: "#1c1f2e",
+          colorPrimary: "#0E78F9",
+        },
+      }}
+    >
       <html lang="en" className="dark">
-        <body className={`${geistSans.variable} ${geistMono.variable} bg-dark-2 antialiased`}>
-          <Navbar />
-          <main className="relative z-10 pt-20">
-            {children}
-          </main>
-          <Toaster />
+        <body
+          className={`${geistSans.variable} ${geistMono.variable} antialiased`}
+        >
+          {/* THEME PROVIDER MUST GO HERE (INSIDE body) */}
+          <ThemeProvider>
+            <Navbar />
+
+            <div className="flex">
+              <main className="relative z-10 pt-20 flex-1">
+                {children}
+              </main>
+            </div>
+
+            <Toaster />
+          </ThemeProvider>
         </body>
       </html>
     </ClerkProvider>
