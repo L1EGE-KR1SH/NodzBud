@@ -24,43 +24,43 @@ const MeetingCard = ({
   buttonText
 }: MeetingCardProps) => {
   const { themeColor } = useTheme();
-  
+
   return (
-    <div 
+    <div
       className="group relative flex flex-col justify-between rounded-2xl p-6 min-h-[280px] transition-all duration-300 hover:scale-[1.02] overflow-hidden"
-      style={{ 
+      style={{
         background: `linear-gradient(135deg, ${themeColor}25 0%, ${themeColor}08 100%)`,
         border: `1px solid ${themeColor}40`,
         boxShadow: `0 4px 20px ${themeColor}15`
       }}
     >
       {/* Animated background gradient on hover */}
-      <div 
+      <div
         className="absolute inset-0 opacity-0 group-hover:opacity-100 transition-opacity duration-500 pointer-events-none"
         style={{
           background: `radial-gradient(circle at top right, ${themeColor}30, transparent 70%)`
         }}
       />
-      
+
       {/* Content */}
       <div className="relative z-10 flex flex-col gap-5">
         {/* Icon with background */}
-        <div 
+        <div
           className="w-12 h-12 rounded-xl flex items-center justify-center transition-transform duration-300 group-hover:scale-110"
-          style={{ 
+          style={{
             backgroundColor: `${themeColor}25`,
             border: `1px solid ${themeColor}30`
           }}
         >
-          <Image 
-            src={icon} 
-            alt="meeting" 
-            width={24} 
+          <Image
+            src={icon}
+            alt="meeting"
+            width={24}
             height={24}
             className="object-contain"
           />
         </div>
-        
+
         {/* Meeting Info */}
         <div className="flex flex-col gap-2">
           <h1 className="text-2xl font-bold text-white line-clamp-1 group-hover:text-opacity-90 transition-all">
@@ -83,7 +83,7 @@ const MeetingCard = ({
           <button
             onClick={handleClick}
             className="flex-1 flex items-center justify-center gap-2 rounded-xl px-6 py-3 font-semibold text-white transition-all duration-300 hover:shadow-lg"
-            style={{ 
+            style={{
               backgroundColor: themeColor,
               boxShadow: `0 4px 15px ${themeColor}40`
             }}
@@ -102,11 +102,11 @@ const MeetingCard = ({
             {buttonText}
           </button>
         )}
-        
+
         <button
           onClick={() => navigator.clipboard.writeText(link)}
           className="flex items-center justify-center gap-2 rounded-xl px-6 py-3 font-semibold text-white transition-all duration-300 hover:shadow-lg"
-          style={{ 
+          style={{
             borderWidth: '1px',
             borderColor: `${themeColor}60`,
             backgroundColor: 'transparent'
@@ -122,14 +122,14 @@ const MeetingCard = ({
             e.currentTarget.style.transform = 'translateY(0)';
           }}
         >
-          <svg 
-            width="16" 
-            height="16" 
-            viewBox="0 0 24 24" 
-            fill="none" 
-            stroke="currentColor" 
+          <svg
+            width="16"
+            height="16"
+            viewBox="0 0 24 24"
+            fill="none"
+            stroke="currentColor"
             strokeWidth="2"
-            strokeLinecap="round" 
+            strokeLinecap="round"
             strokeLinejoin="round"
           >
             <rect x="9" y="9" width="13" height="13" rx="2" ry="2"></rect>

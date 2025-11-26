@@ -12,7 +12,8 @@ class LLMProcessor:
                 
                 # Try initializing with just API key (most compatible)
                 self.client = OpenAI(api_key=self.api_key)
-                print("✅ OpenAI client initialized")
+                masked_key = f"{self.api_key[:8]}...{self.api_key[-4:]}" if self.api_key else "None"
+                print(f"✅ OpenAI client initialized (Key: {masked_key})")
                 
             except ImportError:
                 print("⚠️ OpenAI library not installed. Run: pip install openai")

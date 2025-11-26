@@ -9,3 +9,4 @@ python-dotenv==1.0.1
 torch>=2.0.0
 torchvision>=0.15.0
 openai>=1.0.0  # For LLM text refinement
+httpx<0.28.0  # Required for openai compatibility

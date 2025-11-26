@@ -1,8 +1,3 @@
-// ============================================
-// FIXED: hooks/useSignLanguageDetection.ts
-// Remove paused check for live video streams
-// ============================================
-
 'use client';
 
 import { useEffect, useRef, useState, useCallback } from 'react';
@@ -29,212 +24,235 @@ export const useSignLanguageDetection = (meetingId: string) => {
   const [confidence, setConfidence] = useState(0);
   const [isProcessing, setIsProcessing] = useState(false);
   const [error, setError] = useState<string | null>(null);
-  
+  const [frameCount, setFrameCount] = useState(0);
+
   const videoRef = useRef<HTMLVideoElement | null>(null);
   const canvasRef = useRef<HTMLCanvasElement | null>(null);
   const intervalRef = useRef<NodeJS.Timeout | null>(null);
   const isActiveRef = useRef(false);
-  const frameCountRef = useRef(0);
-  const requestInFlightRef = useRef(false);
+  const processingRef = useRef(false); // Track if currently processing
 
   const sendFrame = useCallback(async (base64Image: string) => {
     if (!isActiveRef.current) {
-      console.log('⏭️ Skipping: not active');
+      console.log('⏭️ Skipping frame: detection not active');
       return;
     }
-    
-    if (requestInFlightRef.current) {
-      console.log('⏭️ Skipping: request in flight');
+
+    // Don't skip if processing - we want continuous sending
+    // Just mark that we're processing
+    if (processingRef.current) {
+      console.log('⏭️ Previous request still processing, skipping this frame');
       return;
     }
-    
-    requestInFlightRef.current = true;
+
+    processingRef.current = true;
     setIsProcessing(true);
-    frameCountRef.current += 1;
-    
-    const frameNum = frameCountRef.current;
-    console.log(`\n📤 [Frame ${frameNum}] Sending to: ${API_BASE}/api/detect-frame`);
-    
+
+    const frameNum = Date.now();
+    console.log(`\n📤 [${new Date().toLocaleTimeString()}] Sending frame to backend...`);
+
     try {
       const formData = new FormData();
       formData.append('image', base64Image);
       formData.append('session_id', meetingId);
-      
+
       const startTime = Date.now();
-      
+
       const response = await fetch(`${API_BASE}/api/detect-frame`, {
         method: 'POST',
         body: formData,
       });
-      
+
       const elapsed = Date.now() - startTime;
-      console.log(`📥 [Frame ${frameNum}] Response: ${response.status} (${elapsed}ms)`);
-      
+
       if (!response.ok) {
         const errorText = await response.text();
-        console.error(`❌ [Frame ${frameNum}] Error:`, errorText);
-        throw new Error(`HTTP ${response.status}`);
+        console.error(`❌ Server error ${response.status}:`, errorText);
+        throw new Error(`HTTP ${response.status}: ${errorText}`);
       }
-      
+
       const data: DetectionResult = await response.json();
-      console.log(`✅ [Frame ${frameNum}] Detected: ${data.character || 'nothing'} (${Math.round(data.confidence * 100)}%)`);
-      
+
+      console.log(`✅ Response (${elapsed}ms):`, {
+        character: data.character || 'none',
+        confidence: `${Math.round(data.confidence * 100)}%`,
+        word: data.current_word || '-',
+        sentence: data.sentence ? data.sentence.substring(0, 30) + '...' : '-'
+      });
+
+      // Update state only if still active
       if (isActiveRef.current) {
         setLastCharacter(data.character);
         setConfidence(data.confidence);
         setCurrentWord(data.current_word);
         setSentence(data.sentence);
         setError(null);
-        
+        setFrameCount(prev => prev + 1);
+
+        // Log word completion
+        if (data.word_completed && data.completed_word) {
+          console.log(`📝 Word completed: "${data.completed_word}"`);
+        }
+
+        // Auto-refine on sentence completion
         if (data.sentence_completed) {
-          console.log('📝 Sentence completed, refining...');
-          await refineText();
+          console.log('📝 Sentence completed! Auto-refining...');
+          // Don't await - let it run in background
+          refineText();
         }
       }
-      
+
     } catch (error: any) {
-      console.error(`❌ [Frame ${frameNum}] Error:`, error.message);
+      console.error(`❌ Error sending frame:`, error.message);
       setError(error.message || 'Detection failed');
+
+      // Don't stop on errors - just log and continue
+      console.log('⚠️ Will retry on next frame...');
+
     } finally {
-      requestInFlightRef.current = false;
+      processingRef.current = false;
       setIsProcessing(false);
     }
   }, [meetingId]);
 
   const captureFrame = useCallback(() => {
-    if (!isActiveRef.current) {
-      return;
-    }
-    
-    if (!videoRef.current || !canvasRef.current) {
-      return;
-    }
-    
+    // Quick checks
+    if (!isActiveRef.current) return;
+    if (!videoRef.current) return;
+    if (!canvasRef.current) return;
+
     const video = videoRef.current;
     const canvas = canvasRef.current;
-    
-    // ⭐ CRITICAL FIX: For live video streams (like WebRTC), 
-    // the video might have paused=true but still be displaying live feed
-    // So we ONLY check readyState and dimensions, NOT paused state
-    
+
+    // Check video is ready
     if (video.readyState < 2) {
-      console.log(`⏳ Video not ready: readyState=${video.readyState}`);
+      console.log('⏳ Video not ready, waiting...');
       return;
     }
-    
+
     if (video.videoWidth === 0 || video.videoHeight === 0) {
-      console.log(`⏳ Video dimensions not ready: ${video.videoWidth}x${video.videoHeight}`);
+      console.log('⏳ Video dimensions not ready...');
       return;
     }
-    
+
     const context = canvas.getContext('2d', { willReadFrequently: true });
-    if (!context) {
-      console.error('❌ Cannot get canvas context');
-      return;
-    }
-    
+    if (!context) return;
+
     try {
-      // Resize canvas if needed
+      // Resize canvas if dimensions changed
       if (canvas.width !== video.videoWidth || canvas.height !== video.videoHeight) {
         canvas.width = video.videoWidth;
         canvas.height = video.videoHeight;
-        console.log(`📐 Canvas resized to: ${canvas.width}x${canvas.height}`);
+        console.log(`📐 Canvas: ${canvas.width}x${canvas.height}`);
       }
-      
-      // Draw current video frame
+
+      // Draw current frame
       context.drawImage(video, 0, 0, canvas.width, canvas.height);
-      
+
       // Convert to base64
       const base64Image = canvas.toDataURL('image/jpeg', 0.7);
-      console.log(`📸 Frame captured (${base64Image.length} chars)`);
-      
-      // Send to backend
+
+      // Send to backend (async - doesn't block interval)
       sendFrame(base64Image);
-      
+
     } catch (err) {
-      console.error('❌ captureFrame error:', err);
+      console.error('❌ Capture error:', err);
     }
   }, [sendFrame]);
 
   const startDetection = useCallback((video: HTMLVideoElement) => {
-    console.log('\n🎥 ========== STARTING DETECTION ==========');
-    console.log('📹 Video element:', {
-      width: video.videoWidth,
-      height: video.videoHeight,
+    console.log('\n🎥 ==========================================');
+    console.log('   STARTING CONTINUOUS SIGN DETECTION');
+    console.log('==========================================');
+    console.log('📹 Video:', {
+      dimensions: `${video.videoWidth}x${video.videoHeight}`,
       readyState: video.readyState,
-      paused: video.paused,
-      currentTime: video.currentTime
+      paused: video.paused
     });
-    console.log('🌐 API Base:', API_BASE);
-    console.log('🆔 Meeting ID:', meetingId);
-    
-    // Cleanup any existing detection
+    console.log('🌐 Backend:', API_BASE);
+    console.log('🆔 Session:', meetingId);
+    console.log('⏰ Interval: 500ms (2 FPS)');
+
+    // Cleanup previous if exists
     if (intervalRef.current) {
-      console.log('🧹 Clearing existing interval');
+      console.log('🧹 Clearing previous interval...');
       clearInterval(intervalRef.current);
       intervalRef.current = null;
     }
-    
-    // Set refs
+
+    // Initialize refs
     videoRef.current = video;
     isActiveRef.current = true;
-    frameCountRef.current = 0;
-    requestInFlightRef.current = false;
-    
-    // Create canvas
+    processingRef.current = false;
+
+    // Create canvas if needed
     if (!canvasRef.current) {
       canvasRef.current = document.createElement('canvas');
       console.log('🖼️ Canvas created');
     }
-    
-    // For live video streams, we don't need to wait for playback
-    // Just check if video has valid dimensions
+
+    // Reset state
+    setFrameCount(0);
+    setError(null);
+
+    // Wait for video to be ready
     const startCapture = () => {
       if (!video || video.videoWidth === 0 || video.videoHeight === 0) {
-        console.log(`⏳ Waiting for video dimensions... ${video?.videoWidth || 0}x${video?.videoHeight || 0}`);
+        console.log('⏳ Waiting for video...');
         setTimeout(startCapture, 100);
         return;
       }
-      
-      console.log('✅ Video dimensions ready! Starting capture loop...');
-      console.log(`⏰ Capture interval: 500ms (2 FPS)`);
-      
-      // Start interval
+
+      console.log('✅ Video ready! Starting capture loop...');
+
+      // START CONTINUOUS INTERVAL
       intervalRef.current = setInterval(() => {
         if (isActiveRef.current) {
           captureFrame();
+        } else {
+          console.log('⚠️ Interval tick but not active (stopping)');
+          if (intervalRef.current) {
+            clearInterval(intervalRef.current);
+            intervalRef.current = null;
+          }
         }
-      }, 500);
-      
+      }, 500); // Every 500ms = 2 FPS
+
       setIsActive(true);
-      
-      // Immediate test capture
-      console.log('🧪 Testing immediate capture...');
-      setTimeout(() => {
-        captureFrame();
-      }, 100);
-      
-      console.log('========== DETECTION STARTED ==========\n');
+
+      // Immediate first capture
+      console.log('🧪 Sending first frame immediately...');
+      setTimeout(() => captureFrame(), 100);
+
+      console.log('==========================================');
+      console.log('   ✅ DETECTION RUNNING CONTINUOUSLY');
+      console.log('==========================================\n');
     };
-    
+
     startCapture();
-    
+
   }, [captureFrame, meetingId]);
 
   const stopDetection = useCallback(() => {
-    console.log('\n🛑 ========== STOPPING DETECTION ==========');
-    
+    console.log('\n🛑 ==========================================');
+    console.log('   STOPPING DETECTION');
+    console.log('==========================================');
+    console.log(`📊 Total frames processed: ${frameCount}`);
+
+    // Stop everything
     isActiveRef.current = false;
-    
+    processingRef.current = false;
+
     if (intervalRef.current) {
       clearInterval(intervalRef.current);
       intervalRef.current = null;
       console.log('✅ Interval cleared');
     }
-    
+
+    // Clear refs
     videoRef.current = null;
-    requestInFlightRef.current = false;
-    
+
+    // Reset state
     setIsActive(false);
     setCurrentWord('');
     setSentence('');
@@ -243,44 +261,43 @@ export const useSignLanguageDetection = (meetingId: string) => {
     setConfidence(0);
     setError(null);
     setIsProcessing(false);
-    frameCountRef.current = 0;
-    
-    console.log('========== DETECTION STOPPED ==========\n');
-  }, []);
+    setFrameCount(0);
+
+    console.log('==========================================\n');
+  }, [frameCount]);
 
   const refineText = useCallback(async () => {
-    console.log('🤖 Refining text...');
+    console.log('🤖 Refining text with AI...');
     try {
       const formData = new FormData();
       formData.append('session_id', meetingId);
-      
+
       const response = await fetch(`${API_BASE}/api/refine-text`, {
         method: 'POST',
         body: formData,
       });
-      
-      console.log(`📥 Refine response: ${response.status}`);
-      
+
       if (!response.ok) {
-        throw new Error('Refinement failed');
+        throw new Error(`HTTP ${response.status}`);
       }
-      
+
       const data = await response.json();
       setRefinedText(data.text);
-      console.log('✅ Text refined:', data.text);
-      
-    } catch (error) {
-      console.error('❌ Refine error:', error);
+      console.log('✅ Refined:', data.text);
+
+    } catch (error: any) {
+      console.error('❌ Refine error:', error.message);
     }
   }, [meetingId]);
 
+  // Cleanup on unmount
   useEffect(() => {
-    console.log('🔧 Hook mounted');
     return () => {
       console.log('🔧 Hook unmounting - cleanup');
       isActiveRef.current = false;
       if (intervalRef.current) {
         clearInterval(intervalRef.current);
+        intervalRef.current = null;
       }
     };
   }, []);
@@ -295,6 +312,7 @@ export const useSignLanguageDetection = (meetingId: string) => {
     confidence,
     error,
     isProcessing,
+    frameCount,
     startDetection,
     stopDetection,
     refineText,

@@ -114,11 +114,26 @@ def process_detection(image_data: str, session_id: str):
         image = Image.open(io.BytesIO(image_bytes))
         image_np = np.array(image)
         
-        # Convert RGB to BGR for YOLO
-        if len(image_np.shape) == 3 and image_np.shape[2] == 3:
-            image_bgr = cv2.cvtColor(image_np, cv2.COLOR_RGB2BGR)
+        # Convert to BGR for YOLO (handle both RGB and RGBA)
+        if len(image_np.shape) == 3:
+            if image_np.shape[2] == 4:
+                # RGBA -> RGB -> BGR
+                image_rgb = cv2.cvtColor(image_np, cv2.COLOR_RGBA2RGB)
+                image_bgr = cv2.cvtColor(image_rgb, cv2.COLOR_RGB2BGR)
+            elif image_np.shape[2] == 3:
+                # RGB -> BGR
+                image_bgr = cv2.cvtColor(image_np, cv2.COLOR_RGB2BGR)
+            else:
+                image_bgr = image_np
         else:
             image_bgr = image_np
+        
+        # Flip image if configured (fix for mirrored webcams)
+        if os.getenv("MIRROR_IMAGE", "false").lower() == "true":
+            image_bgr = cv2.flip(image_bgr, 1)
+
+        # DEBUG: Save last frame to check what model sees
+        cv2.imwrite("debug_last_frame.jpg", image_bgr)
         
         # Run YOLO inference with timeout protection
         results = model(image_bgr, conf=CONFIDENCE_THRESHOLD, verbose=False)
@@ -144,8 +159,29 @@ def process_detection(image_data: str, session_id: str):
         
         # Clean character
         detected_char = clean_character(best_detection)
+        
+        # Get bounding box coordinates if detection exists
+        bbox = None
+        if best_detection and best_confidence > 0:
+            # bbox format: [x1, y1, x2, y2] normalized to 0-1
+            for result in results:
+                if hasattr(result, 'boxes') and result.boxes is not None:
+                    boxes = result.boxes
+                    if len(boxes) > 0:
+                        box = boxes[0]  # Get the best detection box
+                        xyxy = box.xyxy[0].cpu().numpy()  # [x1, y1, x2, y2]
+                        # Normalize to image dimensions
+                        h, w = image_bgr.shape[:2]
+                        bbox = {
+                            'x1': float(xyxy[0] / w),
+                            'y1': float(xyxy[1] / h),
+                            'x2': float(xyxy[2] / w),
+                            'y2': float(xyxy[3] / h)
+                        }
+                        break
+        
         # DEBUG: Print all detections
-        print(f"🔍 raw={best_detection}, clean={detected_char}, conf={best_confidence:.2f}, word='{session['current_word']}'")
+        print(f"🔍 raw={best_detection}, clean={detected_char}, conf={best_confidence:.2f}, word='{session['current_word']}', bbox={bbox}")
         
         # Calculate time since last detection
         time_since_last = current_time - session['last_char_time']
@@ -206,7 +242,8 @@ def process_detection(image_data: str, session_id: str):
             'current_word': session['current_word'],
             'sentence': session['sentence'].strip(),
             'completed_word': completed_word,
-            'sentence_completed': sentence_completed
+            'sentence_completed': sentence_completed,
+            'bbox': bbox  # Add bounding box coordinates
         }
         
     except Exception as e:

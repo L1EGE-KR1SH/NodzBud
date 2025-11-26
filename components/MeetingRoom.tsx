@@ -12,6 +12,7 @@ import {
 import React, { useState, useEffect, useRef } from 'react'
 import { SignLanguageButton } from './SignLanguageButton'
 import { TranscriptionPanel } from './TranscriptionPanel'
+import { BoundingBoxOverlay } from './BoundingBoxOverlay'
 import { useSignLanguageDetection } from '@/hooks/useSignLanguageDetection'
 import {
   DropdownMenu,
@@ -36,7 +37,7 @@ const MeetingRoom = () => {
   const { useCallCallingState } = useCallStateHooks();
   const callingState = useCallCallingState();
   const router = useRouter();
-  
+
   const call = useCall();
   const meetingId = call?.id || 'default-session';
 
@@ -45,20 +46,20 @@ const MeetingRoom = () => {
   const searchIntervalRef = useRef<NodeJS.Timeout | null>(null);
   const [showSignLanguage, setShowSignLanguage] = useState(false);
   const [videoStatus, setVideoStatus] = useState<'searching' | 'found' | 'not-found'>('searching');
-  
+
   const signLanguage = useSignLanguageDetection(meetingId);
 
   // Enhanced video element detection
   const findAndSetVideoElement = (): boolean => {
     const videos = document.querySelectorAll('video');
     console.log(`🔍 [Video Search] Found ${videos.length} video elements`);
-    
+
     // Try to find the user's own video (usually has data-testid or specific class)
     let bestVideo: HTMLVideoElement | null = null;
-    
+
     for (const video of videos) {
       const isReady = video.videoWidth > 0 && video.videoHeight > 0 && video.readyState >= 2;
-      
+
       console.log(`📹 Video check:`, {
         width: video.videoWidth,
         height: video.videoHeight,
@@ -67,7 +68,7 @@ const MeetingRoom = () => {
         className: video.className,
         id: video.id
       });
-      
+
       if (isReady) {
         // Prefer videos that are playing
         if (!video.paused && !video.muted) {
@@ -80,7 +81,7 @@ const MeetingRoom = () => {
         }
       }
     }
-    
+
     if (bestVideo) {
       videoRef.current = bestVideo;
       setVideoStatus('found');
@@ -91,7 +92,7 @@ const MeetingRoom = () => {
       });
       return true;
     }
-    
+
     return false;
   };
 
@@ -109,7 +110,7 @@ const MeetingRoom = () => {
     }
 
     console.log('📞 Call joined, starting video search...');
-    
+
     // Immediate first attempt after 1 second
     const initialTimeout = setTimeout(() => {
       if (!findAndSetVideoElement()) {
@@ -123,7 +124,7 @@ const MeetingRoom = () => {
             }
           }
         }, 1000); // Check every second
-        
+
         // Give up after 30 seconds
         setTimeout(() => {
           if (searchIntervalRef.current) {
@@ -148,49 +149,69 @@ const MeetingRoom = () => {
     };
   }, [callingState]);
 
- const handleSignLanguageToggle = async () => {
-  console.log('🔘 Button clicked, isActive:', signLanguage.isActive);
-  
-  if (signLanguage.isActive) {
-    signLanguage.stopDetection();
-    setShowSignLanguage(false);
-  } else {
-    // 🆕 ADD THESE DEBUG LOGS
-    console.log('🔍 Looking for video element...');
-    const videos = document.querySelectorAll('video');
-    console.log(`Found ${videos.length} video elements:`, videos);
-    
-    videos.forEach((v, i) => {
-      console.log(`Video ${i}:`, {
-        width: v.videoWidth,
-        height: v.videoHeight,
-        readyState: v.readyState,
-        paused: v.paused,
-        playing: !v.paused && v.readyState > 2
+  const handleSignLanguageToggle = async () => {
+    console.log('🔘 Button clicked, isActive:', signLanguage.isActive);
+
+    if (signLanguage.isActive) {
+      signLanguage.stopDetection();
+      setShowSignLanguage(false);
+    } else {
+      // 🆕 ADD THESE DEBUG LOGS
+      console.log('🔍 Looking for video element...');
+      const videos = document.querySelectorAll('video');
+      console.log(`Found ${videos.length} video elements:`, videos);
+
+      videos.forEach((v, i) => {
+        console.log(`Video ${i}:`, {
+          width: v.videoWidth,
+          height: v.videoHeight,
+          readyState: v.readyState,
+          paused: v.paused,
+          playing: !v.paused && v.readyState > 2
+        });
       });
-    });
-    
-    // Find ready video
-    let readyVideo = null;
-    for (const video of videos) {
-      if (video.videoWidth > 0 && video.videoHeight > 0) {
-        readyVideo = video as HTMLVideoElement;
-        console.log('✅ Found ready video:', readyVideo);
-        break;
+
+      // Find ready video
+      let readyVideo = null;
+
+      // First pass: look for playing videos
+      for (const video of videos) {
+        if (video.videoWidth > 0 && video.videoHeight > 0 && !video.paused) {
+          readyVideo = video as HTMLVideoElement;
+          break;
+        }
       }
+
+      // Second pass: any ready video
+      if (!readyVideo) {
+        for (const video of videos) {
+          if (video.videoWidth > 0 && video.videoHeight > 0) {
+            readyVideo = video as HTMLVideoElement;
+            break;
+          }
+        }
+      }
+
+      if (!readyVideo) {
+        console.error('❌ No ready video found');
+        // Retry once after a short delay instead of alerting immediately
+        setTimeout(() => {
+          const retryVideos = document.querySelectorAll('video');
+          if (retryVideos.length > 0 && retryVideos[0].videoWidth > 0) {
+            signLanguage.startDetection(retryVideos[0] as HTMLVideoElement);
+            setShowSignLanguage(true);
+          } else {
+            alert('Video not ready. Please ensure your camera is on and try again.');
+          }
+        }, 1000);
+        return;
+      }
+
+      console.log('🚀 Starting detection with video...');
+      signLanguage.startDetection(readyVideo);
+      setShowSignLanguage(true);
     }
-    
-    if (!readyVideo) {
-      console.error('❌ No ready video found');
-      alert('Video not ready. Wait a moment and try again.');
-      return;
-    }
-    
-    console.log('🚀 Starting detection with video...');
-    signLanguage.startDetection(readyVideo);
-    setShowSignLanguage(true);
-  }
-};
+  };
   // -----------------------------------------------------------
 
   if (callingState !== CallingState.JOINED) return <Loader />
@@ -209,9 +230,23 @@ const MeetingRoom = () => {
   return (
     <section className='relative h-screen overflow-hidden pt-4 text-white'>
       <div className='relative flex size-full items-center justify-center'>
-        <div className='flex size-full max-w-[1000px] items-center'>
+        <div className='flex size-full max-w-[1000px] items-center relative'>
           <CallLayout />
         </div>
+
+        {/* Bounding Box Overlay - positioned over entire video area */}
+        {signLanguage.isActive && signLanguage.bbox && (
+          <div className="absolute inset-0 flex items-center justify-center pointer-events-none">
+            <div className="relative max-w-[1000px] w-full h-full">
+              <BoundingBoxOverlay
+                bbox={signLanguage.bbox}
+                character={signLanguage.lastCharacter}
+                confidence={signLanguage.confidence}
+                videoElement={videoRef.current}
+              />
+            </div>
+          </div>
+        )}
 
         <div
           className={cn(
@@ -274,8 +309,8 @@ const MeetingRoom = () => {
         <div className='fixed top-20 right-4 bg-gray-900/90 text-white p-3 rounded-lg text-xs z-50'>
           <div>Video Status: <span className={
             videoStatus === 'found' ? 'text-green-400' :
-            videoStatus === 'searching' ? 'text-yellow-400' :
-            'text-red-400'
+              videoStatus === 'searching' ? 'text-yellow-400' :
+                'text-red-400'
           }>{videoStatus}</span></div>
           <div>Detection: <span className={signLanguage.isActive ? 'text-green-400' : 'text-gray-400'}>
             {signLanguage.isActive ? 'Active' : 'Inactive'}
